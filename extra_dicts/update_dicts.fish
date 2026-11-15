@@ -16,6 +16,24 @@ function set_dict_version
     sed --regexp-extended --in-place "s/version: [0-9\.\"]+/version: $dict_version/" "$dict_name.dict.yaml"
 end
 
+function sort_dict
+    set dict_file "$argv[1].dict.yaml"
+    set header_end (grep --line-number --max-count=1 '^\.\.\.$' "$dict_file" | string split --fields 1 :)
+    if test -z "$header_end"
+        echo "warning: no header end found in \"$dict_file\", skip sorting." >&2
+        return 1
+    end
+    set body_start (math $header_end + 1)
+    set tmp_file (mktemp)
+    head --lines=$header_end "$dict_file" >$tmp_file
+    if not tail --lines=+$body_start "$dict_file" | env LC_ALL=C sort --field-separator=(printf '\t') --key=2,2 >>$tmp_file
+        rm --force $tmp_file
+        echo "error: failed to sort \"$dict_file\"." >&2
+        return 1
+    end
+    mv --force $tmp_file $dict_file
+end
+
 set -x GH_PROMPT_DISABLED true
 set -x GH_SPINNER_DISABLED true
 
@@ -34,6 +52,7 @@ else
     gh release download $moegirl_latest --clobber --pattern "moegirl.dict.yaml"
     echo "download done."
     set_dict_version moegirl $moegirl_latest
+    sort_dict moegirl
 end
 
 # zhwiktionary
@@ -52,4 +71,5 @@ else
     gh release download --clobber --pattern "zhwiktionary-$zhwiktionary_latest.dict.yaml" --output "zhwiktionary.dict.yaml"
     echo "download done."
     set_dict_version zhwiktionary $zhwiktionary_latest
+    sort_dict zhwiktionary
 end
